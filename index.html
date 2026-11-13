@@ -93,63 +93,73 @@
   </div>
 </main>
 <footer><div class="wrap">© <span id="year"></span> SHOPGAME NAZY · SHOPGAME</div></footer>
-<script>
-(() => {
-  const PRODUCT_KEY = "nazyloavy_products_v1";
-  const SETTINGS_KEY = "nazyloavy_settings_v1";
-  const defaults = [
-    {id:"sample-1",name:"Contoh Produk Game",details:"Detail: Tulis keterangan produk di halaman admin.\\nStatus: Tersedia",price:"150000",image:"",status:"available"},
-    {id:"sample-2",name:"Produk Pilihan",details:"Detail produk dapat diubah melalui halaman admin.",price:"230000",image:"",status:"available"}
-  ];
-  const read = (key, fallback) => { try { const v=JSON.parse(localStorage.getItem(key)); return v ?? fallback; } catch { return fallback; } };
-  let products = read(PRODUCT_KEY, null);
-  if (!Array.isArray(products)) { products = defaults; localStorage.setItem(PRODUCT_KEY, JSON.stringify(products)); }
-  const settings = read(SETTINGS_KEY, {});
-  const money = value => {
-    const n = Number(String(value).replace(/[^0-9]/g,""));
-    return Number.isFinite(n) && n > 0 ? "Rp " + n.toLocaleString("id-ID") : "Hubungi Admin";
-  };
-  const grid = document.getElementById("products");
-  document.getElementById("count").textContent = products.length + " PRODUK";
-  document.getElementById("year").textContent = new Date().getFullYear();
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+// Isi dengan Project URL dan anon/public key dari Supabase.
+const SUPABASE_URL = "https://ujbamfjplvlqzpfavzxb.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_lsr4oqH-FJkZ-IS5Wl02XQ_fbhqp8H0";
+const configReady = SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("PASTE_") && !SUPABASE_ANON_KEY.includes("PASTE_");
+const $ = id => document.getElementById(id);
+const grid = $("products");
+const money = value => {
+  const n = Number(String(value ?? "").replace(/[^0-9]/g, ""));
+  return Number.isFinite(n) && n > 0 ? "Rp " + n.toLocaleString("id-ID") : "Hubungi Admin";
+};
+$("year").textContent = new Date().getFullYear();
+
+function showMessage(message) {
+  grid.replaceChildren();
+  const box = document.createElement("div"); box.className = "empty"; box.textContent = message; grid.append(box);
+  $("count").textContent = "0 PRODUK";
+}
+function revealNewCards() {
+  const targets = document.querySelectorAll("#stok, #kontak, .product");
+  targets.forEach(el => el.classList.add("reveal", "visible"));
+}
+function renderProducts(products, settings) {
+  grid.replaceChildren();
+  $("count").textContent = products.length + " PRODUK";
+  if (!products.length) {
+    const empty = document.createElement("div"); empty.className = "empty"; empty.textContent = "Belum ada produk tersedia."; grid.append(empty);
+  }
+  const phone = String(settings.whatsapp || "").replace(/\D/g, "");
   products.forEach(p => {
     const card = document.createElement("article"); card.className = "product";
     const thumb = document.createElement("div"); thumb.className = "thumb";
-    if (p.image) { const img=document.createElement("img"); img.src=p.image; img.alt=p.name || "Foto produk"; img.loading="lazy"; img.onerror=()=>{thumb.textContent="SHOPGAME NAZY";}; thumb.appendChild(img); }
-    else { const ph=document.createElement("div"); ph.className="placeholder"; ph.textContent="NAZY"; thumb.appendChild(ph); }
-    const status=document.createElement("span"); status.className="status"+(p.status==="sold"?" sold":""); status.textContent=p.status==="sold"?"SOLD":"TERSEDIA"; thumb.appendChild(status);
-    const body=document.createElement("div"); body.className="body";
-    const title=document.createElement("h3"); title.textContent=p.name || "Produk";
-    const details=document.createElement("div"); details.className="details"; details.textContent=p.details || "Hubungi admin untuk detail.";
-    const price=document.createElement("div"); price.className="price"; price.textContent=p.status==="sold"?"SOLD":money(p.price);
-    const buy=document.createElement("a"); buy.className="btn buy"; buy.textContent=p.status==="sold"?"PRODUK TERJUAL":"TANYA / PESAN";
-    const phone=String(settings.whatsapp||"").replace(/\D/g,"");
-    const msg=encodeURIComponent("Halo admin SHOPGAME NAZY, saya ingin bertanya tentang: "+(p.name||"produk"));
-    buy.href=phone?"https://wa.me/"+phone+"?text="+msg:"#kontak"; buy.target=phone?"_blank":"_self"; buy.rel="noopener";
-    if(p.status==="sold"){buy.className="btn ghost buy";buy.removeAttribute("target");buy.href="#kontak";}
-    body.append(title,details,price,buy); card.append(thumb,body); grid.appendChild(card);
+    if (p.image) {
+      const img = document.createElement("img"); img.src = p.image; img.alt = p.name || "Foto produk"; img.loading = "lazy";
+      img.onerror = () => { thumb.replaceChildren(); thumb.textContent = "SHOPGAME NAZY"; }; thumb.append(img);
+    } else { const ph = document.createElement("div"); ph.className = "placeholder"; ph.textContent = "NAZY"; thumb.append(ph); }
+    const status = document.createElement("span"); status.className = "status" + (p.status === "sold" ? " sold" : ""); status.textContent = p.status === "sold" ? "SOLD" : "TERSEDIA"; thumb.append(status);
+    const body = document.createElement("div"); body.className = "body";
+    const title = document.createElement("h3"); title.textContent = p.name || "Produk";
+    const details = document.createElement("div"); details.className = "details"; details.textContent = p.details || "Hubungi admin untuk detail.";
+    const price = document.createElement("div"); price.className = "price"; price.textContent = p.status === "sold" ? "SOLD" : money(p.price);
+    const buy = document.createElement("a"); buy.className = "btn buy"; buy.textContent = p.status === "sold" ? "PRODUK TERJUAL" : "TANYA / PESAN";
+    const msg = encodeURIComponent("Halo admin SHOPGAME NAZY, saya ingin bertanya tentang: " + (p.name || "produk"));
+    buy.href = phone ? "https://wa.me/" + phone + "?text=" + msg : "#kontak"; buy.target = phone ? "_blank" : "_self"; buy.rel = "noopener";
+    if (p.status === "sold") { buy.className = "btn ghost buy"; buy.removeAttribute("target"); buy.href = "#kontak"; }
+    body.append(title, details, price, buy); card.append(thumb, body); grid.append(card);
   });
+  const wa = $("contactWa"); wa.href = phone ? "https://wa.me/" + phone : "#";
+  if (!phone) wa.onclick = e => { e.preventDefault(); alert("Admin belum mengatur nomor WhatsApp."); };
+  const ig = $("contactIg"); ig.href = settings.instagram || "#";
+  if (!settings.instagram) ig.onclick = e => { e.preventDefault(); alert("Admin belum mengatur tautan Instagram."); };
+  revealNewCards();
+}
 
-  const revealTargets = document.querySelectorAll("#stok, #kontak, .product");
-  revealTargets.forEach(el => el.classList.add("reveal"));
-  if ("IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    const revealObserver = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("visible");
-          revealObserver.unobserve(entry.target);
-        }
-      });
-    }, {threshold: 0.12});
-    revealTargets.forEach(el => revealObserver.observe(el));
-  } else {
-    revealTargets.forEach(el => el.classList.add("visible"));
-  }
-
-  const phone=String(settings.whatsapp||"").replace(/\D/g,"");
-  const wa=document.getElementById("contactWa"); wa.href=phone?"https://wa.me/"+phone:"#"; if(!phone) wa.addEventListener("click",e=>{e.preventDefault();alert("Admin belum mengatur nomor WhatsApp. Buka admin.html untuk mengaturnya.");});
-  const ig=document.getElementById("contactIg"); ig.href=settings.instagram||"#"; if(!settings.instagram) ig.addEventListener("click",e=>{e.preventDefault();alert("Admin belum mengatur tautan Instagram.");});
-})();
+async function loadStore() {
+  if (!configReady) { showMessage("Website sedang disiapkan. Konfigurasi Supabase belum diisi oleh pemilik toko."); return; }
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const [{ data: products, error: pError }, { data: settings, error: sError }] = await Promise.all([
+    supabase.from("products").select("id,name,details,price,image,status,created_at").order("created_at", { ascending: false }),
+    supabase.from("store_settings").select("whatsapp,instagram").eq("id", 1).maybeSingle()
+  ]);
+  if (pError || sError) { console.error(pError || sError); showMessage("Produk belum dapat dimuat. Silakan coba beberapa saat lagi."); return; }
+  renderProducts(products || [], settings || {});
+}
+loadStore();
 </script>
 </body>
 </html>

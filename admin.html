@@ -15,6 +15,7 @@
     .layout{display:grid;grid-template-columns:1fr 1.15fr;gap:18px;align-items:start}.panel{background:linear-gradient(150deg,#171717,#101010);border:1px solid var(--line);border-radius:15px;padding:20px}.panel h2{font-size:17px;margin:0 0 17px}
     label{display:block;color:#ccc;font-size:12px;font-weight:700;margin:13px 0 7px}input,textarea,select{width:100%;background:#090909;color:#fff;border:1px solid #383838;border-radius:8px;padding:12px;font:inherit;font-size:13px;outline:none}input:focus,textarea:focus,select:focus{border-color:#aaa}textarea{min-height:95px;resize:vertical}.hint{font-size:10px;color:#888;margin-top:6px}.form-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:17px}
     .settings{margin-top:18px}.list{display:grid;gap:10px}.item{display:grid;grid-template-columns:74px 1fr auto;gap:12px;align-items:center;background:#0b0b0b;border:1px solid #292929;border-radius:11px;padding:10px}.pic{height:66px;width:74px;border-radius:7px;background:#222;overflow:hidden;display:grid;place-items:center;color:#888;font-weight:900}.pic img{width:100%;height:100%;object-fit:cover}.item h3{font-size:13px;margin:0 0 5px}.item p{font-size:11px;color:#aaa;margin:0}.tag{font-size:9px;letter-spacing:1px;color:#ccc;margin-top:5px;display:inline-block}.item-actions{display:flex;gap:6px;flex-direction:column}.small{padding:8px 10px;font-size:10px}.empty{border:1px dashed #444;border-radius:10px;padding:25px;text-align:center;color:#888;font-size:12px}
+    .hidden{display:none!important}.login-panel{max-width:440px;margin:22px auto}.auth-message{font-size:12px;color:#ddd;line-height:1.6;margin-top:12px;min-height:18px}
     @media(max-width:760px){.layout{grid-template-columns:1fr}.item{grid-template-columns:60px 1fr}.pic{width:60px;height:58px}.item-actions{grid-column:2;flex-direction:row}.top{align-items:flex-start}h1{font-size:26px}}
 
     /* Animasi halus agar halaman admin terasa lebih hidup */
@@ -44,9 +45,21 @@
 <body>
 <header><div class="wrap top"><a class="brand" href="index.html">SHOPGAME <span>NAZY</span> / ADMIN</a><a class="btn secondary" href="index.html">LIHAT TOKO ↗</a></div></header>
 <main class="wrap">
+  <section class="panel login-panel" id="loginPanel">
+    <h1 style="font-size:25px">Login Admin</h1>
+    <p class="sub">Masuk menggunakan akun admin SHOPGAME NAZY.</p>
+    <form id="loginForm">
+      <label for="loginEmail">Email admin</label><input id="loginEmail" type="email" autocomplete="username" required placeholder="Email akun Supabase">
+      <label for="loginPassword">Password</label><input id="loginPassword" type="password" autocomplete="current-password" required placeholder="Password akun Supabase">
+      <div class="form-actions"><button class="btn" type="submit" id="loginBtn">MASUK ADMIN</button></div>
+    </form>
+    <p class="auth-message" id="authMessage" aria-live="polite">Gunakan akun yang UID-nya sudah diizinkan di Supabase.</p>
+  </section>
+  <div id="adminDashboard" class="hidden">
+  <div class="form-actions" style="justify-content:flex-end;margin:0 0 15px"><span id="signedInAs" class="hint"></span><button class="btn secondary small" type="button" id="logoutBtn">KELUAR</button></div>
   <h1>Pengelolaan Produk</h1>
   <p class="sub">Tambah, ubah, dan atur status produk yang tampil di halaman toko.</p>
-  <div class="notice"><b>Catatan penyimpanan:</b> Data pada versi ini disimpan di LocalStorage browser/perangkat ini. Perubahan tidak otomatis tersinkron ke pengunjung lain atau perangkat lain. Untuk admin multi-perangkat diperlukan database/backend.</div>
+  <div class="notice"><b>Database online:</b> Produk dan pengaturan disimpan di Supabase. Hanya akun admin yang diizinkan dapat menambah, mengubah, atau menghapus data.</div>
   <div class="layout">
     <div>
       <section class="panel">
@@ -58,7 +71,7 @@
           <label for="price">Harga (angka)</label><input id="price" inputmode="numeric" placeholder="150000">
           <label for="status">Status</label><select id="status"><option value="available">TERSEDIA</option><option value="sold">SOLD</option></select>
           <label for="imageUrl">URL Foto Produk (opsional)</label><input id="imageUrl" type="url" placeholder="https://...">
-          <label for="imageFile">Atau pilih foto dari perangkat</label><input id="imageFile" type="file" accept="image/*"><div class="hint">Foto akan disimpan di browser. Gunakan gambar yang ukurannya tidak terlalu besar.</div>
+          <label for="imageFile">Atau pilih foto dari perangkat</label><input id="imageFile" type="file" accept="image/*"><div class="hint">Foto akan diunggah ke penyimpanan online Supabase (maksimal 5 MB).</div>
           <div class="form-actions"><button class="btn" type="submit" id="saveBtn">SIMPAN PRODUK</button><button class="btn secondary" type="button" id="resetBtn">RESET</button></div>
         </form>
       </section>
@@ -72,64 +85,117 @@
     </div>
     <section class="panel"><h2>Daftar Produk <span id="total" style="color:#999;font-size:12px"></span></h2><div class="list" id="list"></div></section>
   </div>
+  </div>
 </main>
-<script>
-(() => {
-  const PRODUCT_KEY="nazyloavy_products_v1", SETTINGS_KEY="nazyloavy_settings_v1";
-  const $=id=>document.getElementById(id);
-  const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}};
-  let products=read(PRODUCT_KEY,[
-    {id:"sample-1",name:"Contoh Produk Game",details:"Detail: Tulis keterangan produk di halaman admin.\\nStatus: Tersedia",price:"150000",image:"",status:"available"},
-    {id:"sample-2",name:"Produk Pilihan",details:"Detail produk dapat diubah melalui halaman admin.",price:"230000",image:"",status:"available"}
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+// Isi URL, anon/public key, dan UID admin dari Supabase. JANGAN gunakan service_role key.
+const SUPABASE_URL = "https://ujbamfjplvlqzpfavzxb.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_lsr4oqH-FJkZ-IS5Wl02XQ_fbhqp8H0";
+const ADMIN_UID = "416a595e-b911-4204-8852-58f3415132d0";
+const configReady = SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("PASTE_") && !SUPABASE_ANON_KEY.includes("PASTE_") && !ADMIN_UID.includes("PASTE_");
+const supabase = configReady ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const $ = id => document.getElementById(id);
+let products = [], settings = {}, pendingFile = null, pendingImage = "";
+
+function message(text, isError=false) { $("authMessage").textContent = text; $("authMessage").style.color = isError ? "#ff9b9b" : "#ddd"; }
+function showLogin(text="", isError=false) { $("loginPanel").classList.remove("hidden"); $("adminDashboard").classList.add("hidden"); if (text) message(text, isError); }
+function showDashboard(user) { $("loginPanel").classList.add("hidden"); $("adminDashboard").classList.remove("hidden"); $("signedInAs").textContent = "Login: " + (user.email || "admin"); }
+function resetForm() { $("productForm").reset(); $("productId").value=""; $("formTitle").textContent="Tambah Produk"; $("saveBtn").textContent="SIMPAN PRODUK"; pendingFile=null; pendingImage=""; }
+function render() {
+  $("total").textContent = "(" + products.length + ")";
+  const list=$("list"); list.replaceChildren();
+  if (!products.length) { const e=document.createElement("div"); e.className="empty"; e.textContent="Belum ada produk. Tambahkan produk melalui formulir."; list.append(e); return; }
+  products.forEach(p => {
+    const row=document.createElement("article"); row.className="item";
+    const pic=document.createElement("div"); pic.className="pic";
+    if (p.image) { const img=document.createElement("img"); img.src=p.image; img.alt=p.name||"Foto"; pic.append(img); } else pic.textContent="NAZY";
+    const info=document.createElement("div"); const title=document.createElement("h3"); title.textContent=String(p.name||"");
+    const n=Number(String(p.price||"").replace(/[^0-9]/g,"")); const price=document.createElement("p"); price.textContent=n?"Rp "+n.toLocaleString("id-ID"):"Harga belum diatur";
+    const status=document.createElement("span"); status.className="tag"; status.textContent=p.status==="sold"?"SOLD":"TERSEDIA"; info.append(title,price,status);
+    const actions=document.createElement("div"); actions.className="item-actions";
+    const edit=document.createElement("button"); edit.className="btn secondary small"; edit.type="button"; edit.textContent="EDIT"; edit.addEventListener("click",()=>editProduct(p.id));
+    const del=document.createElement("button"); del.className="btn danger small"; del.type="button"; del.textContent="HAPUS"; del.addEventListener("click",()=>deleteProduct(p.id));
+    actions.append(edit,del); row.append(pic,info,actions); list.append(row);
+  });
+}
+async function loadData() {
+  const [{data:p,error:pe},{data:s,error:se}] = await Promise.all([
+    supabase.from("products").select("id,name,details,price,image,status,created_at").order("created_at",{ascending:false}),
+    supabase.from("store_settings").select("whatsapp,instagram").eq("id",1).maybeSingle()
   ]);
-  let settings=read(SETTINGS_KEY,{});
-  let pendingImage="";
-  const persist=()=>localStorage.setItem(PRODUCT_KEY,JSON.stringify(products));
-  const escapeText=s=>String(s??"");
-  function resetForm(){ $("productForm").reset();$("productId").value="";$("formTitle").textContent="Tambah Produk";$("saveBtn").textContent="SIMPAN PRODUK";pendingImage=""; }
-  function render(){
-    $("total").textContent="("+products.length+")";const list=$("list");list.replaceChildren();
-    if(!products.length){const e=document.createElement("div");e.className="empty";e.textContent="Belum ada produk. Tambahkan produk melalui formulir.";list.append(e);return;}
-    products.forEach(p=>{
-      const row=document.createElement("article");row.className="item";
-      const pic=document.createElement("div");pic.className="pic";
-      if(p.image){const img=document.createElement("img");img.src=p.image;img.alt=p.name||"Foto";pic.append(img)}else pic.textContent="NAZY";
-      const info=document.createElement("div");const title=document.createElement("h3");title.textContent=escapeText(p.name);
-      const price=document.createElement("p");const n=Number(String(p.price||"").replace(/[^0-9]/g,""));price.textContent=n?"Rp "+n.toLocaleString("id-ID"):"Harga belum diatur";
-      const status=document.createElement("span");status.className="tag";status.textContent=p.status==="sold"?"SOLD":"TERSEDIA";info.append(title,price,status);
-      const actions=document.createElement("div");actions.className="item-actions";
-      const edit=document.createElement("button");edit.className="btn secondary small";edit.type="button";edit.textContent="EDIT";edit.addEventListener("click",()=>editProduct(p.id));
-      const del=document.createElement("button");del.className="btn danger small";del.type="button";del.textContent="HAPUS";del.addEventListener("click",()=>deleteProduct(p.id));
-      actions.append(edit,del);row.append(pic,info,actions);list.append(row);
-    });
-  }
-  function editProduct(id){
-    const p=products.find(x=>x.id===id);if(!p)return;
-    $("productId").value=p.id;$("name").value=p.name||"";$("details").value=p.details||"";$("price").value=p.price||"";$("status").value=p.status||"available";$("imageUrl").value=p.image&&p.image.startsWith("http")?p.image:"";
-    pendingImage=p.image||"";$("formTitle").textContent="Edit Produk";$("saveBtn").textContent="SIMPAN PERUBAHAN";window.scrollTo({top:0,behavior:"smooth"});
-  }
-  function deleteProduct(id){if(!confirm("Hapus produk ini?"))return;products=products.filter(p=>p.id!==id);persist();render();if($("productId").value===id)resetForm();}
-  $("imageFile").addEventListener("change",e=>{
-    const file=e.target.files&&e.target.files[0];if(!file)return;
-    if(!file.type.startsWith("image/")){alert("Pilih file gambar.");e.target.value="";return;}
-    if(file.size>1200000){alert("Ukuran foto maksimal 1,2 MB.");e.target.value="";return;}
-    const reader=new FileReader();reader.onload=()=>{pendingImage=String(reader.result||"");$("imageUrl").value="";};reader.readAsDataURL(file);
-  });
-  $("productForm").addEventListener("submit",e=>{
-    e.preventDefault();const id=$("productId").value||("p-"+Date.now()+"-"+Math.random().toString(36).slice(2,7));
-    const image=$("imageUrl").value.trim()||pendingImage;
+  if (pe || se) throw (pe || se);
+  products=p||[]; settings=s||{};
+  $("whatsapp").value=settings.whatsapp||""; $("instagram").value=settings.instagram||""; render();
+}
+async function checkSession() {
+  if (!configReady) { showLogin("Konfigurasi belum lengkap. Isi URL, anon key, dan UID admin di bagian awal file admin.html."); $("loginBtn").disabled=true; return; }
+  const {data:{session}}=await supabase.auth.getSession();
+  if (!session) { showLogin(); return; }
+  if (session.user.id !== ADMIN_UID) { await supabase.auth.signOut(); showLogin("Akun ini tidak memiliki akses admin.", true); return; }
+  showDashboard(session.user);
+  try { await loadData(); } catch(err) { console.error(err); alert("Gagal mengambil data. Periksa tabel dan aturan keamanan Supabase."); }
+}
+$("loginForm").addEventListener("submit", async e => {
+  e.preventDefault(); if (!supabase) return;
+  const btn=$("loginBtn"); btn.disabled=true; btn.textContent="MEMERIKSA..."; message("Sedang memeriksa akun...");
+  const {data,error}=await supabase.auth.signInWithPassword({email:$("loginEmail").value.trim(),password:$("loginPassword").value});
+  btn.disabled=false; btn.textContent="MASUK ADMIN";
+  if (error) { message("Login gagal. Periksa email dan password.",true); return; }
+  if (data.user.id !== ADMIN_UID) { await supabase.auth.signOut(); message("Akun ini bukan akun admin yang diizinkan.",true); return; }
+  showDashboard(data.user);
+  try { await loadData(); } catch(err) { console.error(err); message("Login berhasil, tetapi data gagal dimuat. Periksa SQL Supabase.",true); }
+});
+$("logoutBtn").addEventListener("click", async()=>{ await supabase.auth.signOut(); products=[]; render(); resetForm(); showLogin("Kamu sudah keluar dari akun admin."); });
+
+function editProduct(id) {
+  const p=products.find(x=>x.id===id); if(!p)return;
+  $("productId").value=p.id; $("name").value=p.name||""; $("details").value=p.details||""; $("price").value=p.price||""; $("status").value=p.status||"available";
+  $("imageUrl").value=p.image||""; pendingImage=p.image||""; pendingFile=null;
+  $("formTitle").textContent="Edit Produk"; $("saveBtn").textContent="SIMPAN PERUBAHAN"; window.scrollTo({top:0,behavior:"smooth"});
+}
+async function deleteProduct(id) {
+  if (!confirm("Hapus produk ini?")) return;
+  const {error}=await supabase.from("products").delete().eq("id",id);
+  if(error){alert("Produk gagal dihapus. Periksa koneksi dan izin admin.");console.error(error);return;}
+  products=products.filter(p=>p.id!==id); render(); if($("productId").value===id)resetForm();
+}
+$("imageFile").addEventListener("change",e=>{
+  const file=e.target.files?.[0]; if(!file)return;
+  if(!file.type.startsWith("image/")){alert("Pilih file gambar.");e.target.value="";return;}
+  if(file.size>5*1024*1024){alert("Ukuran foto maksimal 5 MB.");e.target.value="";return;}
+  pendingFile=file; pendingImage=""; $("imageUrl").value="";
+});
+async function uploadImage(file) {
+  const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+  const path=Date.now()+"-"+crypto.randomUUID()+"."+ext;
+  const {error}=await supabase.storage.from("product-images").upload(path,file,{upsert:false,contentType:file.type});
+  if(error)throw error;
+  return supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+}
+$("productForm").addEventListener("submit",async e=>{
+  e.preventDefault(); const btn=$("saveBtn"); btn.disabled=true; btn.textContent="MENYIMPAN...";
+  try {
+    let image=$("imageUrl").value.trim()||pendingImage;
+    if(pendingFile) image=await uploadImage(pendingFile);
+    const id=$("productId").value||("p-"+crypto.randomUUID());
     const item={id,name:$("name").value.trim(),details:$("details").value.trim(),price:$("price").value.trim(),status:$("status").value,image};
-    const index=products.findIndex(p=>p.id===id);if(index>=0)products[index]=item;else products.unshift(item);
-    persist();render();resetForm();alert("Produk berhasil disimpan di browser ini.");
-  });
-  $("resetBtn").addEventListener("click",resetForm);
-  $("saveSettings").addEventListener("click",()=>{
-    settings={whatsapp:$("whatsapp").value.trim(),instagram:$("instagram").value.trim()};
-    localStorage.setItem(SETTINGS_KEY,JSON.stringify(settings));alert("Pengaturan kontak tersimpan di browser ini.");
-  });
-  $("whatsapp").value=settings.whatsapp||"";$("instagram").value=settings.instagram||"";
-  render();
-})();
+    const {error}=await supabase.from("products").upsert(item,{onConflict:"id"}); if(error)throw error;
+    await loadData(); resetForm(); alert("Produk berhasil disimpan ke database online.");
+  } catch(err) { console.error(err); alert("Gagal menyimpan produk. Periksa koneksi, aturan database, dan bucket foto Supabase."); }
+  finally { btn.disabled=false; btn.textContent=$("productId").value?"SIMPAN PERUBAHAN":"SIMPAN PRODUK"; }
+});
+$("resetBtn").addEventListener("click",resetForm);
+$("saveSettings").addEventListener("click",async()=>{
+  const btn=$("saveSettings"); btn.disabled=true;
+  const value={id:1,whatsapp:$("whatsapp").value.trim(),instagram:$("instagram").value.trim()};
+  const {error}=await supabase.from("store_settings").upsert(value,{onConflict:"id"});
+  btn.disabled=false;
+  if(error){console.error(error);alert("Pengaturan gagal disimpan. Periksa izin database.");return;}
+  settings=value; alert("Pengaturan kontak tersimpan online.");
+});
+checkSession();
 </script>
 </body>
 </html>
